@@ -1,0 +1,295 @@
+This is a regression analysis of the merged city of Seattle data from Group 6. 
+
+First, I will import the data from GitHub and prepare it for use in R: 
+
+```{r}
+link = 'https://raw.githubusercontent.com/Group-6-542/EmilyRepository/50e2502dfe3fde3a633f8ca193eb0c6ff76aafe5/mergedGroupDataFinal.csv'
+myfile = url(link)
+fromPy = read.csv(file = myfile)
+
+# reset indexes to R format:
+row.names(fromPy)=NULL
+```
+```{r}
+#verify data structure
+str(fromPy,width = 50,strict.width='cut')
+```
+
+Next I will install and load the required packages:
+```{r}
+install.packages("rsq")
+```
+```{r}
+install.packages("dotwhisker")
+```
+```{r}
+install.packages("margins")
+```
+```{r}
+install.packages("lmtest") #had to restart session
+```
+
+Next, I will test several hypotheses about this data. My first hypothesis is that in zip codes with a higher AGI, there will be more cultural spaces. My second hypothesis is that in zip codes with a higher AGI, there will be fewer crimes reported. 
+
+```{r}
+#prepare hypotheses
+# hypothesis 1: culturalSpaces increases as avgAGI increases:
+hypo1=formula(culturalSpaces~ avgAGI)
+
+# hypothesis 2: casesReported decreases as avgAGI increases:
+
+hypo2=formula(casesReported~ avgAGI)
+```
+Testing the results. 
+
+```{r}
+#
+# results
+gauss1=glm(hypo1,
+           data = fromPy,
+           family = 'gaussian')
+
+gauss2=glm(hypo2,
+           data = fromPy,
+           family = 'gaussian')
+```
+
+```{r}
+summary(gauss1)
+```
+```{r}
+summary(gauss2)
+```
+
+
+```{r}
+library(rsq)
+rsq(gauss2,adj=T)
+```
+
+```{r}
+library(rsq)
+rsq(gauss1,adj=T)
+```
+
+Based on the r-squared, it doesn't look like either of these models are a good fit.
+
+I'll try another hypothesis: that the number of pets increases as the number of returns (i.e., the population) increases in a zip code. 
+```{r}
+# hypo 3 - numberOfPets increases as numberOfReturns increases
+hypo3=formula(numberOfPets~ numberOfReturns)
+```
+
+```{r}
+gauss3=glm(hypo3,
+           data = fromPy,
+           family = 'gaussian')
+```
+
+```{r}
+summary(gauss3)
+```
+
+```{r}
+library(rsq)
+rsq(gauss3,adj=T)
+```
+
+Based on the r-squared, this is a better model. 
+
+I'll try another hypothesis: that the number of pets increases as the average AGI increases. 
+```{r}
+# hypo 4 - numberOfPets increases as avgAGI increases
+hypo4=formula(numberOfPets~ avgAGI)
+```
+
+```{r}
+gauss4=glm(hypo4,
+           data = fromPy,
+           family = 'gaussian')
+```
+
+```{r}
+summary(gauss4)
+```
+```{r}
+library(rsq)
+rsq(gauss4,adj=T)
+```
+
+This doesn't look like a very good model. I will test to see which one is better:
+```{r}
+anova(gauss3,gauss4,test="Chisq")
+```
+
+The model for hypothesis 3 is the better model. Next I will plot it: 
+```{r}
+library(dotwhisker)
+dwplot(gauss3)
+```
+
+```{r}
+library(margins)
+cplot(gauss4,'numberOfPets')
+```
+I will see if I can create a better fitting model by using one more variable in my hypothesis. My next hypothesis is that as the number of pets increases, the number of returns and the number of cultural spaces increases:
+```{r}
+hypo5=formula(numberOfPets~ numberOfReturns * culturalSpaces)
+```
+```{r}
+gauss5=glm(hypo5,
+           data = fromPy,
+           family = 'gaussian')
+```
+```{r}
+summary(gauss5)
+```
+```{r}
+library(rsq)
+rsq(gauss5,adj=T)
+```
+
+This doesn't seem to improve the model that much, but I will test: 
+
+```{r}
+anova(gauss3,gauss5,test="Chisq")
+```
+Hypo 3 is still the better model. 
+
+Now I'll test this model as if it had a binary dependent variable. I need to create one: 
+```{r}
+#Binary outcome
+
+fromPy$numberOfReturnsdico=ifelse(fromPy$numberOfReturns>median(fromPy$numberOfReturns,
+                                        na.rm = T),
+                      1,0)
+```
+
+```{r}
+hypoDico1=formula(numberOfReturnsdico~ numberOfPets)
+```
+
+```{r}
+fromPy$numberOfReturnsdico=factor(fromPy$numberOfReturnsdico)
+```
+
+```{r}
+Logi1=glm(hypoDico1,data = fromPy,
+          family = "binomial")
+```
+
+```{r}
+summary(Logi1)
+```
+
+```{r}
+library(margins)
+(marginsINFO = margins(Logi1))
+```
+
+```{r}
+(marginsSUMM=summary(marginsINFO))
+```
+
+```{r}
+fromPy$numberOfPetsdico=ifelse(fromPy$numberOfPets>median(fromPy$numberOfPets,
+                                        na.rm = T),
+                      1,0)
+```
+
+Next I will try the hypothesis 5, where I added the cultural spaces variable. 
+```{r}
+hypoDico2=formula(numberOfPetsdico~ numberOfReturns * culturalSpaces)
+```
+
+```{r}
+Logi2=glm(hypoDico2,data = fromPy,
+          family = "binomial")
+```
+
+```{r}
+summary(Logi2)
+```
+I will test which model is better: 
+```{r}
+library("lmtest")
+lmtest::lrtest(Logi1,Logi2)
+```
+Model 2 is the better model. 
+
+I will test another model, where number of pets increases as number of returns increases: 
+```{r}
+
+fromPy$numberOfPetsdico=ifelse(fromPy$numberOfPets>median(fromPy$numberOfPets,
+                                        na.rm = T),
+                      1,0)
+```
+
+```{r}
+hypoDico3=formula(numberOfPetsdico~ numberOfReturns)
+```
+
+```{r}
+Logi3=glm(hypoDico3,data = fromPy,
+          family = "binomial")
+```
+
+```{r}
+lmtest::lrtest(Logi2,Logi3)
+```
+
+The number of pets to number of returns model is still the best fit. Let's test one last model. The hypothesis is that the number of pets increases as the number of returns and the average AGI increases: 
+```{r}
+hypoDico4=formula(numberOfPetsdico~ numberOfReturns * avgAGI)
+```
+
+```{r}
+Logi4=glm(hypoDico4,data = fromPy,
+          family = "binomial")
+```
+
+```{r}
+summary(Logi4)
+```
+
+I will compare it to the model that includes the number of cultural spaces.
+```{r}
+lmtest::lrtest(Logi2,Logi4)
+```
+
+Model 4 is the better fit. 
+```{r}
+
+library(margins)
+(marginsINFO = margins(Logi4))
+```
+
+```{r}
+(marginsSUMM=summary(marginsINFO))
+```
+Now I'll plot it: 
+```{r}
+base= ggplot(marginsSUMM,
+             aes(x=factor, y=AME))
+base= base + geom_point()
+
+plotMargins = base + theme(axis.text.x = element_text(angle = 80,size = 6,hjust = 1))
+plotMargins    
+```
+```{r}
+plotMargins +  geom_errorbar(aes(ymin=lower,
+                                 ymax=upper))
+```
+
+```{r}
+cplot(Logi4, "avgAGI")
+```
+
+```{r}
+cplot(Logi4, "numberOfReturns")
+```
+
+```{r}
+persp(Logi4)
+```
+
